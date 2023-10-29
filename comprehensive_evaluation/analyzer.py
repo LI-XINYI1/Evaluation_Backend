@@ -12,7 +12,6 @@ import matplotlib.lines as mlines
 sys.path.append(".")
 from tool import market_dynamics_modeling_analysis
 from tool import label_util as util
-from comprehensive_evaluation.analyzer import *
 from comprehensive_evaluation.util import *
 from comprehensive_evaluation.slice_model import *
 import bisect
