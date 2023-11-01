@@ -44,7 +44,7 @@ class Dynamic_labeler:
             #     normalized_coef_list, 1 - risk_bond / 2
             # )
             sorted_normalized_coef_list=sorted(normalized_coef_list)
-            low=sorted_normalized_coef_list[int(len(normalized_coef_list)*risk_bond / 2)+1]
+            low=sorted_normalized_coef_list[int(len(normalized_coef_list)*risk_bond / 2)]
             high=sorted_normalized_coef_list[int(len(normalized_coef_list)*(1-risk_bond / 2))]
             self.segments = []
             for i in range(1, self.dynamic_num):
@@ -188,6 +188,10 @@ class Worker:
                     self.dynamic_num,
                     labeling_method=self.labeling_method,
                 )
+                #TO:
+                if(len(label)!=len(self.data_dict[tic])):
+                    extended_label=[label[-1]]*(len(self.data_dict[tic])-len(label))
+                    label.extend(extended_label)
                 self.data_dict[tic]["label"] = label
                 self.all_data_seg.extend(data_seg)
                 self.all_label_seg.extend(label_seg)

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="423fa317-b9d8-4ddc-a9a4-4056d4f6e0ce" name="eval">
+        <fileTransfer rootFolder="/home/mlqin/dwh/EVALUATION" accessType="SFTP" host="10.96.176.203" port="22" sshConfigId="3afe7a7a-11bc-42dc-b286-c35fd31ead62" sshConfig="mlqin@10.96.176.203:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+      <webServer id="cfa0a94c-6de4-4c48-9675-47cf045109e2" name="root">
+        <fileTransfer rootFolder="/home/mlqin/dwh" accessType="SFTP" host="10.96.176.203" port="22" sshConfigId="3afe7a7a-11bc-42dc-b286-c35fd31ead62" sshConfig="mlqin@10.96.176.203:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

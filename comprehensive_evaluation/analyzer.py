@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import numpy as np
 import warnings
@@ -10,10 +12,10 @@ import matplotlib.lines as mlines
 
 # sys.path.append("..")
 sys.path.append(".")
-from tool import market_dynamics_modeling_analysis
-from tool import label_util as util
-from comprehensive_evaluation.util import *
-from comprehensive_evaluation.slice_model import *
+from EVALUATION.tool import market_dynamics_modeling_analysis
+from EVALUATION.tool import label_util as util
+from EVALUATION.comprehensive_evaluation.util import *
+from EVALUATION.comprehensive_evaluation.slice_model import *
 import bisect
 
 
@@ -21,22 +23,25 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["F_ENABLE_ONEDNN_OPTS"] = "0"
-
 parser = argparse.ArgumentParser()
+#"data/micro_action.npy"
+#"best_result/BTCT/micro_action.npy"
+
+parser.add_argument('day', type=int, help='sub_process')
 
 parser.add_argument(
     "--positions_loc", type=str, 
-    default="best_result/BTCT/micro_action.npy", 
+    default="EVALUATION/data/micro_action.npy",
     help="the location of file micro_action.npy"
 )
 parser.add_argument(
     "--data_loc", type=str, 
-    default="best_result/BTCT/test.feather", 
+    default="EVALUATION/data/test.feather",
     help="the location of data file"
 )
 parser.add_argument(
     "--path", type=str, 
-    default="best_result/BTCT/data", 
+    default="EVALUATION/data/data",
     help="the location to read, write, store data and outputs"
 )
 parser.add_argument(
@@ -70,7 +75,7 @@ def find_previous_element(sorted_list, value):
       
 
 class Analyzer:
-    def __init__(self, path, market_information, strategy, commission_rate=0.00015):
+    def __init__(self, path, market_information, strategy, commission_rate=0.00015, initial_position=0):
         # market information should be a data frame that consist of 21 columns(timedstamp &  5-level ask bid's price and size)
         # stategy: a list of dictionary consisting of 3 keys: timestamp, action (buy or sell) and dictionary indicating the level
         # price and amount of the conducted orders
@@ -78,6 +83,12 @@ class Analyzer:
         self.commission_rate=commission_rate
         self.strategy = strategy
         self.path = path
+        self.initial_position = initial_position
+
+        # strategy空集
+        if not self.strategy:
+
+            pass
         
         # Specify the file path you want to check
         label_file_path = self.path + "/df_label.feather"
@@ -97,6 +108,7 @@ class Analyzer:
             model = Linear_Market_Dynamics_Model(
                 data=data.reset_index(), dynamic_number=num_dynamics
             )
+            print(path)
             model.run(path)
         self.df_label = pd.read_feather(path + "/df_label.feather")
         print("labeled file loaded")
@@ -106,6 +118,7 @@ class Analyzer:
         # check the pricing the problem
 
         price_timing = [price["timestamp"] for price in self.strategy]
+        print(max(price_timing),max( self.market_information.timestamp))
         assert max(price_timing) <= max( self.market_information.timestamp)
         # check the price is legal
         for timestamp in  self.market_information.timestamp.unique():
@@ -1030,15 +1043,22 @@ class Analyzer:
         img_path = path + "/return_rate_market&strat.pdf"
         plt.savefig(img_path, bbox_inches="tight")
 
+def filename_append(base_name,day):
+    if base_name.endswith(".npy"):
+        return base_name[:-4]+str(day)+".npy"
+    if base_name.endswith(".feather"):
+        return base_name[:-8] + str(day) + ".feather"
+    return base_name+str(day)
 
 if __name__ == "__main__":
   
   args = parser.parse_args()
-  
-  positions = np.load(args.positions_loc)
-  data = pd.read_feather(args.data_loc)
-  path = args.path  
-  
+  args.day
+
+  positions = np.load(filename_append(args.positions_loc,args.day))
+  data = pd.read_feather(filename_append(args.data_loc,args.day))
+  path = filename_append(args.path,args.day)
+  print(positions[0])
   # positions = np.load("../best_result/BTCT/micro_action.npy")
   # data = pd.read_feather("../best_result/BTCT/test.feather")
   # path = "../best_result/BTCT/data"
@@ -1061,7 +1081,7 @@ if __name__ == "__main__":
       pd.Timestamp(data[0:1]["timestamp"].values[0]),
       pd.Timestamp(data.iloc[-1]["timestamp"]),
   ] 
-  
+  print(data.shape[0],positions.shape[0])
   strategy = transform_market_order_strategy(
       data, positions, max_holding_number=max_holding_number1
   )

@@ -10,8 +10,8 @@ from pathlib import Path
 import warnings
 
 sys.path.append(".")
-from tool import market_dynamics_modeling_analysis
-from tool import label_util as util
+from EVALUATION.tool import market_dynamics_modeling_analysis
+from EVALUATION.tool import label_util as util
 
 
 class Linear_Market_Dynamics_Model(object):
@@ -22,13 +22,13 @@ class Linear_Market_Dynamics_Model(object):
         timestamp="index",
         tic="tic",
         labeling_method="slope",
-        min_length_limit=60,
+        min_length_limit=10,
         merging_metric="DTW_distance",
         merging_threshold=0.0003,
         merging_dynamic_constraint=1,
         filter_strength=1,
         dynamic_number=5,
-        max_length_expectation=3600,
+        max_length_expectation=60,
     ):
         super(Linear_Market_Dynamics_Model, self).__init__()
         self.data_path = data

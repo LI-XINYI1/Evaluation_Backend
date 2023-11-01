@@ -8,7 +8,8 @@ def transform_market_order_strategy(
     data, positions, action_dim=5, max_holding_number=0.01
 ):
     previous_position = 0
-    timelist = data["timestamp"].tolist()[:-1]
+    timelist = data["timestamp"].tolist()
+    # print(len(timelist),len(positions))
     assert len(timelist) == len(positions)
     strategy = []
     previous_position = 0
