@@ -64,7 +64,11 @@ parser.add_argument(
     default=5, 
     help="number of types of market when analyze along dynamics"
 )
-
+parser.add_argument(
+    "--initial_position", type=int, 
+    default=0, 
+    help="initial position"
+)
 
 def find_previous_element(sorted_list, value):
     index = bisect.bisect_left(sorted_list, value)
@@ -85,12 +89,7 @@ class Analyzer:
         self.path = path
         self.initial_position = initial_position
 
-        # strategy空集
-        if not self.strategy:
-
-            pass
-        
-        # Specify the file path you want to check
+                # Specify the file path you want to check
         label_file_path = self.path + "/df_label.feather"
         # Use os.path.exists() to check if the file exists
         if os.path.exists(label_file_path):
@@ -117,111 +116,140 @@ class Analyzer:
         # the strategy should be a list of market order containing the executed price, amount the agent's position after conducting the trade
         # check the pricing the problem
 
-        price_timing = [price["timestamp"] for price in self.strategy]
-        print(max(price_timing),max( self.market_information.timestamp))
-        assert max(price_timing) <= max( self.market_information.timestamp)
-        # check the price is legal
-        for timestamp in  self.market_information.timestamp.unique():
-            price_single_timestamp =  self.market_information[
-                 self.market_information["timestamp"] == timestamp
-            ]
+        if strategy:  # TODO 1101
+            first_action = strategy[0]
+            if first_action["action"] == "buy":
+                first_buy_amount = sum([order["amount"] for order in first_action["order"]])
+                first_position = first_action["position"] - first_buy_amount
+                assert abs(first_position - initial_position) < 1e-5
 
-            assert (
-                price_single_timestamp["ask1_price"].values[0]
-                >= price_single_timestamp["bid1_price"].values[0]
-            )
-        # check the strategy opening position is whether is over rated and place correctly
-        # 对于买单我们要检查他的买入价格的下限应该符合ask1 price
-        for stack_order in strategy:
-            timestamp = stack_order["timestamp"]
-            current_market_information =  self.market_information[
-                 self.market_information["timestamp"] == timestamp
-            ]
-            assert stack_order["action"] in ["buy", "sell"]
-            if stack_order["action"] == "buy":
-                list_order = stack_order["order"]
-                level_number = len(list_order)
-                for i in range(level_number):
-                    assert (
-                        list_order[i]["price"]
-                        == current_market_information["ask{}_price".format(i + 1)].values[0]
-                    )
-                    assert (
-                        list_order[i]["amount"]
-                        <= current_market_information["ask{}_size".format(i + 1)].values[0]
-                    )
-            elif stack_order["action"] == "sell":
-                list_order = stack_order["order"]
-                level_number = len(list_order)
-                for i in range(level_number):
-                    assert (
-                        list_order[i]["price"]
-                        == current_market_information["bid{}_price".format(i + 1)].values[
-                            0
-                        ]  # ？？？？？？？？？bid0_price  format(i)
-                    )
-                    assert (
-                        list_order[i]["amount"]
-                        <= current_market_information["bid{}_size".format(i + 1)].values[0]
-                    )
-        # check the trace of the position in the trading process is legal or not. it always should be 0 at the start and end of the trading process
-        if  self.strategy[-1]["position"] != 0:
-            last_position =  self.strategy[-1]["position"]
-            warnings.warn(
-                "the final position of the strategy is not zero, we force the agent to close its position in the last timestamp"
-            )
-            last_market_information =  self.market_information[
-                self.market_information["timestamp"] == max( self.market_information["timestamp"].unique())
-            ]
-            size_sum = 0
-            if (
-                last_position
-                > last_market_information["bid1_size"].values[0]
-                + last_market_information["bid2_size"].values[0]
-                + last_market_information["bid3_size"].values[0]
-                + last_market_information["bid4_size"].values[0]
-                + last_market_information["bid5_size"].values[0]
-            ):
-                warnings.warn(
-                    "we barely trade at this timstamp instantly because there is no enough liquidity in the market,\
-                we force the agent to close its position in the last timestamp by expanding the last level's size"
+
+            price_timing = [price["timestamp"] for price in self.strategy]
+            print(max(price_timing),max( self.market_information.timestamp))
+            assert max(price_timing) <= max( self.market_information.timestamp)
+            # check the price is legal
+            for timestamp in  self.market_information.timestamp.unique():
+                price_single_timestamp =  self.market_information[
+                    self.market_information["timestamp"] == timestamp
+                ]
+
+                assert (
+                    price_single_timestamp["ask1_price"].values[0]
+                    >= price_single_timestamp["bid1_price"].values[0]
                 )
-                last_market_information["bid5_size"] = last_position - (
-                    last_market_information["bid1_size"].values[0]
+            # check the strategy opening position is whether is over rated and place correctly
+            # 对于买单我们要检查他的买入价格的下限应该符合ask1 price
+            for stack_order in strategy:
+                timestamp = stack_order["timestamp"]
+                current_market_information =  self.market_information[
+                    self.market_information["timestamp"] == timestamp
+                ]
+                assert stack_order["action"] in ["buy", "sell"]
+                if stack_order["action"] == "buy":
+                    list_order = stack_order["order"]
+                    level_number = len(list_order)
+                    for i in range(level_number):
+                        assert (
+                            list_order[i]["price"]
+                            == current_market_information["ask{}_price".format(i + 1)].values[0]
+                        )
+                        assert (
+                            list_order[i]["amount"]
+                            <= current_market_information["ask{}_size".format(i + 1)].values[0]
+                        )
+                elif stack_order["action"] == "sell":
+                    list_order = stack_order["order"]
+                    level_number = len(list_order)
+                    for i in range(level_number):
+                        assert (
+                            list_order[i]["price"]
+                            == current_market_information["bid{}_price".format(i + 1)].values[
+                                0
+                            ]  # ？？？？？？？？？bid0_price  format(i)
+                        )
+                        assert (
+                            list_order[i]["amount"]
+                            <= current_market_information["bid{}_size".format(i + 1)].values[0]
+                        )
+            # check the trace of the position in the trading process is legal or not. it always should be 0 at the start and end of the trading process
+            if  self.strategy[-1]["position"] != 0:
+                last_position =  self.strategy[-1]["position"]
+                warnings.warn(
+                    "the final position of the strategy is not zero, we force the agent to close its position in the last timestamp"
+                )
+                last_market_information =  self.market_information[
+                    self.market_information["timestamp"] == max( self.market_information["timestamp"].unique())
+                ]
+                size_sum = 0
+                if (
+                    last_position
+                    > last_market_information["bid1_size"].values[0]
                     + last_market_information["bid2_size"].values[0]
                     + last_market_information["bid3_size"].values[0]
                     + last_market_information["bid4_size"].values[0]
-                )
-            for i in range(5):
-                size_sum += last_market_information["bid{}_size".format(i + 1)].values[0]
-                if last_position <= size_sum:
-                    break
-            level_order_size_list = []
-            order_remaining = last_position
-            for j in range(i + 1):
-                level_order_size_list.append(
+                    + last_market_information["bid5_size"].values[0]
+                ):
+                    warnings.warn(
+                        "we barely trade at this timstamp instantly because there is no enough liquidity in the market,\
+                    we force the agent to close its position in the last timestamp by expanding the last level's size"
+                    )
+                    last_market_information["bid5_size"] = last_position - (
+                        last_market_information["bid1_size"].values[0]
+                        + last_market_information["bid2_size"].values[0]
+                        + last_market_information["bid3_size"].values[0]
+                        + last_market_information["bid4_size"].values[0]
+                    )
+                for i in range(5):
+                    size_sum += last_market_information["bid{}_size".format(i + 1)].values[0]
+                    if last_position <= size_sum:
+                        break
+                level_order_size_list = []
+                order_remaining = last_position
+                for j in range(i + 1):
+                    level_order_size_list.append(
+                        {
+                            "price": last_market_information["bid{}_price".format(j + 1)].values[0],
+                            "amount": min(
+                                order_remaining,
+                                last_market_information["bid{}_size".format(j + 1)].values[0],
+                            ),
+                        }
+                    )
+                    order_remaining = (
+                        order_remaining
+                        - last_market_information["bid{}_size".format(j + 1)].values[0]
+                    )
+                self.strategy.append(
                     {
-                        "price": last_market_information["bid{}_price".format(j + 1)].values[0],
-                        "amount": min(
-                            order_remaining,
-                            last_market_information["bid{}_size".format(j + 1)].values[0],
-                        ),
+                        "timestamp": last_market_information["timestamp"].values[0],
+                        "action": "sell",
+                        "order": level_order_size_list,
+                        "position": 0,
                     }
                 )
-                order_remaining = (
-                    order_remaining
-                    - last_market_information["bid{}_size".format(j + 1)].values[0]
-                )
-            self.strategy.append(
-                {
-                    "timestamp": last_market_information["timestamp"].values[0],
-                    "action": "sell",
-                    "order": level_order_size_list,
-                    "position": 0,
-                }
-            )
         
     def analysis_behavior(self,selected_strategy):
+        
+        if not self.strategy:  
+            if self.initial_position == 0:  
+                mean_return_rate, mean_duration, mean_mdd, win_rate = 0, 0, 0, 0
+            else:
+                mean_duration = self.market_information['timestamp'].tolist()[-1] - self.market_information['timestamp'].tolist()[0]
+                assets = self.market_information['bid1_price'].values
+                mean_return_rate = assets[-1] / (self.market_information['ask1_price'].values[0]) - 1
+                mdd = 0
+                peak=assets[0]
+                for value in assets:
+                    if value>peak:
+                        peak=value
+                    dd=(peak-value)/peak
+                    if dd>mdd:
+                        mdd=dd            
+                mean_mdd = mdd / 1  
+                win_rate = 1 if mean_return_rate >=0 else 0
+            return mean_return_rate, mean_duration, mean_mdd, win_rate
+        
+        
         # 现确定总共的开闭仓的次数 selected strategy 起码开头和结尾的position应该为0
         opening_strategy_timestamp_list = []
         closing_strategy_timestamp_list = []
@@ -619,6 +647,29 @@ class Analyzer:
         # TODO 根据策略 用开平仓的次数来划分时间（总开平仓次数）
         # TODO 两维度从时间和市场状态 计算胜率，收益率，持仓时间，最大回撤，calmar ratio，已经开仓量和平仓量占总开仓量和平仓量的百分比
 
+        if not self.strategy: 
+            closing_count_seg = [[0]*5]*5
+            closing_amount_seg = [[0]*5]*5
+
+            if self.initial_position == 0:
+                opening_count_seg = [[0]*5]*5
+                opening_amount_seg = [[0]*5]*5
+            else:
+                # 第一片，哪个dynamic [[0,0,1,0,0],[0]*5,[0]*5，[0]*5，[0]*5]
+                init_market_info = self.df_label.iloc[0]['label']
+                temp_count_seg, temp_amount_seg = [0,0,0,0,0], [0,0,0,0,0]
+                temp_amount_seg[init_market_info] = 1*self.initial_position
+                temp_count_seg[init_market_info] = 1
+
+                temp_rest_four = [[0]*5]*4
+                opening_count_seg, opening_amount_seg = [], []
+                opening_count_seg.append(temp_count_seg)
+                opening_count_seg += temp_rest_four
+                opening_amount_seg.append(temp_amount_seg)
+                opening_amount_seg += temp_rest_four
+                
+            return (opening_count_seg,closing_count_seg,opening_amount_seg,closing_amount_seg)
+    
         selected_market = data[
             (data["timestamp"] >= selected_timestamp[0])
             & (data["timestamp"] <= selected_timestamp[1])
@@ -799,147 +850,170 @@ class Analyzer:
         )  
 
     def draw_stacking_graph(self,opening_count_seg,closing_count_seg,opening_amount_seg,closing_amount_seg):
-      opening_count = [sum(seg) for seg in opening_count_seg]
-      closing_count = [sum(seg) for seg in closing_count_seg]
-      opening_amount = [sum(seg) for seg in opening_amount_seg]
-      closing_amount = [sum(seg) for seg in closing_amount_seg]
+        opening_count = [sum(seg) for seg in opening_count_seg]
+        closing_count = [sum(seg) for seg in closing_count_seg]
+        opening_amount = [sum(seg) for seg in opening_amount_seg]
+        closing_amount = [sum(seg) for seg in closing_amount_seg]
 
-      opening_count_perc = [
-          [float(format(x / sum(opening_count), ".3f")) for x in opening_count]
-          for opening_count in opening_count_seg
-      ]
-      closing_count_perc = [
-          [float(format(x / sum(closing_count), ".3f")) for x in closing_count]
-          for closing_count in closing_count_seg
-      ]
-      opening_amount_perc = [
-          [float(format(x / sum(opening_amount), ".3f")) for x in opening_amount]
-          for opening_amount in opening_amount_seg
-      ]
-      closing_amount_perc = [
-          [float(format(x / sum(closing_amount), ".3f")) for x in closing_amount]
-          for closing_amount in closing_amount_seg
-      ]     
-      
-      color_list = ['#EF8383', '#F0C48B', '#A5D89C', '#9CD4D8', '#CA9CD8', '#000000']
-      x_label = ["phase1", "phase2", "phase3", "phase4", "phase5"]
-      y_label = ["Bull", "Rally", "Sideways", "Pullback", "Bear"]
-      y_label.reverse()
-      
-      x_ax = np.array(range(len(x_label))) * 2.5
 
-      legend_label_count = ["Counts", "Bull", "Rally", "Sideways", "Pullback", "Bear"]
-      legend_label_count.reverse()
-      graph_names_count = ["Opening Count", "Closing Count"]
-      opening_close_count = [opening_count, closing_count]
-      opening_close_count_perc = [opening_count_perc, closing_count_perc]  
-      
-      legend_label_amount = ["Amounts", "Bull", "Rally", "Sideways", "Pullback", "Bear"]
-      legend_label_amount.reverse()
-      graph_names_amount = ["Opening Amount", "Closing Amount"]  
-      opening_close_amount = [opening_amount, closing_amount]
-      opening_close_amount_perc = [opening_amount_perc, closing_amount_perc]
-      
-      fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(16, 8))
-      patches = [
-          mpatches.Patch(color=color_list[i], label="{:s}".format(legend_label_count[i]))
-          for i in range(len(color_list)-1)
-      ]
-      patches.append(mlines.Line2D([], [], color=color_list[-1], label=legend_label_count[-1]))
-      legend = fig.legend(
-          handles=patches,
-          loc="upper center",
-          bbox_to_anchor=(0.5, 1.1),
-          ncol=6,
-          fontsize=25,
-          
-      )
-      for subplot in range(1, 3):
-          ax = axes[subplot - 1]
-          # # plt.subplot(1,2,subplot)
-          # figure, ax1 = plt.subplots()
-          ax.set_xlabel("Time", fontsize="xx-large")
-          if subplot == 1:
-              ax.set_ylabel("Percentage", fontsize="xx-large")
-          ax.set_title(graph_names_count[subplot - 1], fontsize="xx-large")
-          bottom_y = np.zeros(5)
-          for i in range(5):
-              ax.bar(
-                  x_ax,
-                  [count[i] for count in opening_close_count_perc[subplot - 1]],
-                  label=y_label[i],
-                  width=2,
-                  color=color_list[i],
-                  bottom=bottom_y,
-                  zorder = 5
-              )
-              for k in range(len(bottom_y)):
-                  bottom_y[k] = bottom_y[k] + opening_close_count_perc[subplot - 1][k][i]
-          ax.set_xticks([i for i in x_ax], x_label, fontsize="xx-large")
-          ax.set_ylim(0, 1.0)
-          ax.set_yticks(np.arange(0, 1.2, 0.2), [f"{i}%" for i in range(0, 120, 20)], fontsize="xx-large")
-          ax.grid(axis="y", alpha=0.5, ls="--", zorder = 0)
-          plt.tight_layout()
+        if not self.strategy:   
+            opening_count_perc = [[0.2,0.2,0.2,0.2,0.2]]*5
+            closing_count_perc =  [[0.2,0.2,0.2,0.2,0.2]]*5
+            opening_amount_perc =  [[0.2,0.2,0.2,0.2,0.2]]*5
+            closing_amount_perc =  [[0.2,0.2,0.2,0.2,0.2]]*5
+            
+            if not self.initial_position < 1e-5:
+                opening_count_perc =[[1 if x != 0 else 0 for x in opening_count_seg[0]]] + [[0.2,0.2,0.2,0.2,0.2]]*4
+                opening_amount_perc = [[1 if x != 0 else 0 for x in opening_amount_seg[0]]] + [[0.2,0.2,0.2,0.2,0.2]]*4
 
-          ax2 = ax.twinx()
-          ax2.plot(x_ax, opening_close_count[subplot - 1], color=color_list[-1], linewidth=3)
-          if subplot == 2:
-              ax2.set_ylabel("Total Counts", fontsize="xx-large")
-          ax2.tick_params(axis='y',labelsize="xx-large")
-          ax2.set_yticks(np.linspace(ax2.get_yticks()[0], ax2.get_yticks()[-1], len(ax.get_yticks())))
-      img_path = path + "/phase_dynamic_count_proportion.pdf"
-      plt.savefig(img_path, bbox_inches="tight")
-      
-      fig1, axes1 = plt.subplots(nrows=1, ncols=2, figsize=(16, 8))
-      patches = [
-          mpatches.Patch(color=color_list[i], label="{:s}".format(legend_label_amount[i]))
-          for i in range(len(color_list)-1)
-      ]
-      patches.append(mlines.Line2D([], [], color=color_list[-1], label=legend_label_amount[-1]))
-      legend = fig1.legend(
-          handles=patches,
-          loc="upper center",
-          bbox_to_anchor=(0.5, 1.1),
-          ncol=6,
-          fontsize=25,
-          
-      )
-      for subplot in range(1, 3):
-          ax = axes1[subplot - 1]
-          # # plt.subplot(1,2,subplot)
-          # fig1ure, ax1 = plt.subplots()
-          ax.set_xlabel("Time", fontsize="xx-large")
-          if subplot == 1:
-              ax.set_ylabel("Percentage", fontsize="xx-large")
-          ax.set_title(graph_names_amount[subplot - 1], fontsize="xx-large")
-          bottom_y = np.zeros(5)
-          for i in range(5):
-              ax.bar(
-                  x_ax,
-                  [amount[i] for amount in opening_close_amount_perc[subplot - 1]],
-                  label=y_label[i],
-                  width=2,
-                  color=color_list[i],
-                  bottom=bottom_y,
-                  zorder = 5
-              )
-              for k in range(len(bottom_y)):
-                  bottom_y[k] = bottom_y[k] + opening_close_amount_perc[subplot - 1][k][i]
-          ax.set_xticks([i for i in x_ax], x_label, fontsize="xx-large")
-          ax.set_ylim(0, 1.0)
-          ax.set_yticks(np.arange(0, 1.2, 0.2), [f"{i}%" for i in range(0, 120, 20)], fontsize="xx-large")
-          ax.grid(axis="y", alpha=0.5, ls="--", zorder = 0)
-          plt.tight_layout()
+        else:
+            opening_count_perc = [
+                [float(format(x / sum(opening_count), ".3f")) for x in opening_count]
+                for opening_count in opening_count_seg
+            ]
+            closing_count_perc = [
+                [float(format(x / sum(closing_count), ".3f")) for x in closing_count]
+                for closing_count in closing_count_seg
+            ]
+            opening_amount_perc = [
+                [float(format(x / sum(opening_amount), ".3f")) for x in opening_amount]
+                for opening_amount in opening_amount_seg
+            ]
+            closing_amount_perc = [
+                [float(format(x / sum(closing_amount), ".3f")) for x in closing_amount]
+                for closing_amount in closing_amount_seg
+            ]        
+        
+        color_list = ['#EF8383', '#F0C48B', '#A5D89C', '#9CD4D8', '#CA9CD8', '#000000']
+        x_label = ["phase1", "phase2", "phase3", "phase4", "phase5"]
+        y_label = ["Bull", "Rally", "Sideways", "Pullback", "Bear"]
+        y_label.reverse()
+        
+        x_ax = np.array(range(len(x_label))) * 2.5
 
-          ax2 = ax.twinx()
-          ax2.plot(x_ax, opening_close_amount[subplot - 1], color=color_list[-1], linewidth=3)
-          if subplot == 2:
-              ax2.set_ylabel("Total amounts", fontsize="xx-large")
-          ax2.tick_params(axis='y',labelsize="xx-large")
-          ax2.set_yticks(np.linspace(ax2.get_yticks()[0], ax2.get_yticks()[-1], len(ax.get_yticks())))
+        legend_label_count = ["Counts", "Bull", "Rally", "Sideways", "Pullback", "Bear"]
+        legend_label_count.reverse()
+        graph_names_count = ["Opening Count", "Closing Count"]
+        opening_close_count = [opening_count, closing_count]
+        opening_close_count_perc = [opening_count_perc, closing_count_perc]  
+        
+        legend_label_amount = ["Amounts", "Bull", "Rally", "Sideways", "Pullback", "Bear"]
+        legend_label_amount.reverse()
+        graph_names_amount = ["Opening Amount", "Closing Amount"]  
+        opening_close_amount = [opening_amount, closing_amount]
+        opening_close_amount_perc = [opening_amount_perc, closing_amount_perc]
+        
+        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(16, 8))
+        patches = [
+            mpatches.Patch(color=color_list[i], label="{:s}".format(legend_label_count[i]))
+            for i in range(len(color_list)-1)
+        ]
+        patches.append(mlines.Line2D([], [], color=color_list[-1], label=legend_label_count[-1]))
+        legend = fig.legend(
+            handles=patches,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 1.1),
+            ncol=6,
+            fontsize=25,
+            
+        )
+        for subplot in range(1, 3):
+            ax = axes[subplot - 1]
+            # # plt.subplot(1,2,subplot)
+            # figure, ax1 = plt.subplots()
+            ax.set_xlabel("Time", fontsize="xx-large")
+            if subplot == 1:
+                ax.set_ylabel("Percentage", fontsize="xx-large")
+            ax.set_title(graph_names_count[subplot - 1], fontsize="xx-large")
+            bottom_y = np.zeros(5)
+            for i in range(5):
+                ax.bar(
+                    x_ax,
+                    [count[i] for count in opening_close_count_perc[subplot - 1]],
+                    label=y_label[i],
+                    width=2,
+                    color=color_list[i],
+                    bottom=bottom_y,
+                    zorder = 5
+                )
+                for k in range(len(bottom_y)):
+                    bottom_y[k] = bottom_y[k] + opening_close_count_perc[subplot - 1][k][i]
+            ax.set_xticks([i for i in x_ax], x_label, fontsize="xx-large")
+            ax.set_ylim(0, 1.0)
+            ax.set_yticks(np.arange(0, 1.2, 0.2), [f"{i}%" for i in range(0, 120, 20)], fontsize="xx-large")
+            ax.grid(axis="y", alpha=0.5, ls="--", zorder = 0)
+            plt.tight_layout()
 
-      img_path = path + "/phase_dynamic_amount_proportion.pdf"
-      plt.savefig(img_path, bbox_inches="tight")
+            ax2 = ax.twinx()
+            ax2.plot(x_ax, opening_close_count[subplot - 1], color=color_list[-1], linewidth=3)
+            if subplot == 2:
+                ax2.set_ylabel("Total Counts", fontsize="xx-large")
+            ax2.tick_params(axis='y',labelsize="xx-large")
+            if strategy:  # TODO self
+                ax2.set_yticks(np.linspace(ax2.get_yticks()[0], ax2.get_yticks()[-1], len(ax.get_yticks())))
+            else:
+                ax2.set_yticks([-1,0,1,2,3,4])
+                ax2.set_yticklabels(['', '0', '1', '2', '3', '4'])
+        img_path = path + "/phase_dynamic_count_proportion.pdf"
+        plt.savefig(img_path, bbox_inches="tight")
+        
+        fig1, axes1 = plt.subplots(nrows=1, ncols=2, figsize=(16, 8))
+        patches = [
+            mpatches.Patch(color=color_list[i], label="{:s}".format(legend_label_amount[i]))
+            for i in range(len(color_list)-1)
+        ]
+        patches.append(mlines.Line2D([], [], color=color_list[-1], label=legend_label_amount[-1]))
+        legend = fig1.legend(
+            handles=patches,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 1.1),
+            ncol=6,
+            fontsize=25,
+            
+        )
+        for subplot in range(1, 3):
+            ax = axes1[subplot - 1]
+            # # plt.subplot(1,2,subplot)
+            # fig1ure, ax1 = plt.subplots()
+            ax.set_xlabel("Time", fontsize="xx-large")
+            if subplot == 1:
+                ax.set_ylabel("Percentage", fontsize="xx-large")
+            ax.set_title(graph_names_amount[subplot - 1], fontsize="xx-large")
+            bottom_y = np.zeros(5)
+            for i in range(5):
+                ax.bar(
+                    x_ax,
+                    [amount[i] for amount in opening_close_amount_perc[subplot - 1]],
+                    label=y_label[i],
+                    width=2,
+                    color=color_list[i],
+                    bottom=bottom_y,
+                    zorder = 5
+                )
+                for k in range(len(bottom_y)):
+                    bottom_y[k] = bottom_y[k] + opening_close_amount_perc[subplot - 1][k][i]
+            ax.set_xticks([i for i in x_ax], x_label, fontsize="xx-large")
+            ax.set_ylim(0, 1.0)
+            ax.set_yticks(np.arange(0, 1.2, 0.2), [f"{i}%" for i in range(0, 120, 20)], fontsize="xx-large")
+            ax.grid(axis="y", alpha=0.5, ls="--", zorder = 0)
+            plt.tight_layout()
+
+            ax2 = ax.twinx()
+            if subplot == 2:
+                ax2.set_ylabel("Total Counts", fontsize="xx-large")
+            ax2.tick_params(axis='y',labelsize="xx-large")
+            if strategy:  # TODO self
+                ax2.plot(x_ax, opening_close_amount[subplot - 1], color=color_list[-1], linewidth=3)
+                ax2.set_yticks(np.linspace(ax2.get_yticks()[0], ax2.get_yticks()[-1], len(ax.get_yticks())))
+            else:
+                ax2.plot(x_ax, [ele/max_holding_number1*4.5 for ele in opening_close_amount[subplot - 1]], color=color_list[-1], linewidth=3)
+                y_label_num = np.linspace(-max_holding_number1/9,max_holding_number1,6)
+                y_label_text = ['%.3f'%num for num in y_label_num]
+                ax2.set_yticks([-0.5,0.5,1.5,2.5,3.5,4.5])
+                ax2.set_yticklabels(y_label_text)
+
+        img_path = path + "/phase_dynamic_amount_proportion.pdf"
+        plt.savefig(img_path, bbox_inches="tight")
     
     def draw_PnL(self, selected_timestamp):
         def calculate_PnL(selected_timestamp):
@@ -1010,27 +1084,44 @@ class Analyzer:
 
         spread = (selected_market['ask1_price']/selected_market['bid1_price'].values[0] -1)*100
 
+        if not self.strategy:            
+            if self.initial_position == 0:
+                strat_spread = [0] * len(spread)
+            else:
+                strat_spread = spread
+        else:
+            total_value = calculate_PnL(
+                [
+                    self.market_information["timestamp"].tolist()[0],
+                    self.market_information["timestamp"].tolist()[-1],
+                ]
+            )
+            strat_spread = [(x / total_value[0] - 1) * 100 for x in total_value]
+
         x = selected_market['timestamp']
 
         fig, ax = plt.subplots(figsize=(24, 12))
 
-        color_list = ['#EF8383', '#9CD4D8']
+        color_list = ['coral', 'royalblue']
         legend_label = ['Market','Strategy']
-        patches = [
-            mpatches.Patch(color=color_list[i], label="{:s}".format(legend_label[i]))
+        lines = [
+            mlines.Line2D([],[],color=color_list[i], label="{:s}".format(legend_label[i]))
             for i in range(len(color_list))
         ]
         legend = fig.legend(
-            handles=patches,
+            handles=lines,
+            fancybox = True,
             loc="upper center",
-            bbox_to_anchor=(0.5, 0.97),
+            bbox_to_anchor=(0.5, 0.94),
             ncol=6,
             fontsize=25,
-        
         )
 
         ax.plot(x,spread,label='market',color = color_list[0],linewidth = 3)
-        ax.plot(x,strat_spread,label='strategy',color = color_list[1],linewidth = 3)
+        if not self.strategy:            
+            ax.plot(x, strat_spread, label="strategy", color=color_list[1], linewidth=3, linestyle = '--',dashes = (10,10))        
+        else:
+            ax.plot(x, strat_spread, label="strategy", color=color_list[1], linewidth=3)
         # ax.set_title("Return rate for market and strategy",fontsize = 40)
         ax.set_xlabel('Date', fontsize=30)
         ax.set_ylabel('Return Rate (%)', fontsize=30)
@@ -1085,7 +1176,7 @@ if __name__ == "__main__":
   strategy = transform_market_order_strategy(
       data, positions, max_holding_number=max_holding_number1
   )
-
+  
   print("flag 1")
   
   analyzer =  Analyzer(path, data, strategy,commission_fee)
